@@ -30,12 +30,26 @@ let targetX = 0;
 let currentX = 0;
 const easingK = 16;
 
-// HUD
+// HUD / Overlay
 const scoreEl = document.getElementById('score')!;
 const ballsEl = document.getElementById('balls')!;
+const livesEl = document.getElementById('lives')!;
+const stateEl = document.getElementById('state')!;
+const overlay = document.getElementById('overlay') as HTMLDivElement;
+const overlayBtn = document.getElementById('overlay-btn') as HTMLButtonElement;
+const overlayMsg = document.getElementById('overlay-msg') as HTMLDivElement;
+const overlayTitle = document.getElementById('overlay-title') as HTMLDivElement;
+
+type GameState = 'menu' | 'play' | 'paused' | 'result';
+let gameState: GameState = 'menu';
+function setState(s: GameState) {
+  gameState = s;
+  stateEl.textContent = s[0].toUpperCase() + s.slice(1);
+}
 
 let score = 0;
 let totalBalls = 0;
+let lives = 3;
 let lastSpawnColor: ColorName | null = null;
 let spawnTimer = 0;
 let spawnInterval = 1.0; // seconds, later reduce over time
@@ -91,6 +105,20 @@ async function init() {
     }
   });
 
+  // Pause on window blur / mouse leaves the window
+  window.addEventListener('blur', () => {
+    if (gameState === 'play') {
+      showOverlay('一時停止', 'フォーカスで再開', 'Paused');
+      setState('paused');
+    }
+  });
+  document.addEventListener('mouseleave', () => {
+    if (gameState === 'play') {
+      showOverlay('一時停止', 'クリックで再開', 'Paused');
+      setState('paused');
+    }
+  });
+
   // Simple ground grid for reference
   const grid = new THREE.GridHelper(4, 8, 0x222222, 0x222222);
   grid.position.y = 0;
@@ -105,6 +133,11 @@ async function init() {
   // Build static environment: rail (inclined), table (flat)
   buildEnvironment();
   buildSortingBox();
+
+  // Start in menu
+  setState('menu');
+  livesEl.textContent = String(lives);
+  showOverlay('Color Ball Run', 'Start', 'クリックでスタート（Classic: 3 ライフ）');
 
   // Start loop
   lastTime = performance.now() / 1000;
@@ -250,11 +283,13 @@ let lastTime = 0;
 let acc = 0;
 
 function stepPhysics(dt: number) {
-  // Easing towards targetX
-  currentX = THREE.MathUtils.damp(currentX, targetX, easingK, dt);
-  if (sortingBoxBody) {
-    const t = sortingBoxBody.translation();
-    sortingBoxBody.setNextKinematicTranslation({ x: currentX, y: t.y, z: t.z });
+  // Easing towards targetX (only in play)
+  if (gameState === 'play') {
+    currentX = THREE.MathUtils.damp(currentX, targetX, easingK, dt);
+    if (sortingBoxBody) {
+      const t = sortingBoxBody.translation();
+      sortingBoxBody.setNextKinematicTranslation({ x: currentX, y: t.y, z: t.z });
+    }
   }
 
   world.step(eventQueue);
@@ -268,21 +303,9 @@ function stepPhysics(dt: number) {
     const bBall = ballData.get(h2);
     // One should be trigger color, the other ball
     if (aColor && bBall) {
-      if (aColor === bBall.color) {
-        score += 10;
-      } else {
-        score -= 5;
-      }
-      scoreEl.textContent = String(score);
-      removeBallByColliderHandle(h2);
+      handleBallHit(bBall.color, aColor, h2);
     } else if (bColor && aBall) {
-      if (bColor === aBall.color) {
-        score += 10;
-      } else {
-        score -= 5;
-      }
-      scoreEl.textContent = String(score);
-      removeBallByColliderHandle(h1);
+      handleBallHit(aBall.color, bColor, h1);
     }
   });
 
@@ -304,12 +327,33 @@ function stepPhysics(dt: number) {
     if (rbody) {
       const p = rbody.translation();
       if (p.y < -1 || Math.abs(p.x) > 3 || Math.abs(p.z) > 3) {
-        // miss
-        score -= 5;
-        scoreEl.textContent = String(score);
-        removeBallByColliderHandle(h);
+        // miss in Classic: life -1
+        onMiss(h);
       }
     }
+  }
+}
+
+function handleBallHit(ball: ColorName, trigger: ColorName, colliderHandle: number) {
+  if (gameState !== 'play') return;
+  if (ball === trigger) {
+    score += 10;
+    scoreEl.textContent = String(score);
+  } else {
+    onMiss(colliderHandle);
+    return;
+  }
+  removeBallByColliderHandle(colliderHandle);
+}
+
+function onMiss(colliderHandle: number) {
+  if (gameState !== 'play') return;
+  lives -= 1;
+  livesEl.textContent = String(lives);
+  removeBallByColliderHandle(colliderHandle);
+  if (lives <= 0) {
+    setState('result');
+    showOverlay('Game Over', 'Restart', `スコア: ${score}`);
   }
 }
 
@@ -318,17 +362,21 @@ function loop() {
   let dt = now - lastTime;
   lastTime = now;
   dt = Math.min(dt, 0.1);
-  acc += dt;
-  timeSinceStart += dt;
+  // Only advance time while playing
+  if (gameState === 'play') {
+    acc += dt;
+    timeSinceStart += dt;
+  }
 
   // spawn control: gradually speed up every 10s by -10% (min 0.35s)
-  spawnTimer += dt;
-  const waves = Math.floor(timeSinceStart / 10);
-  spawnInterval = Math.max(0.35, 1.0 * Math.pow(0.9, waves));
-  while (spawnTimer >= spawnInterval) {
-    spawnTimer -= spawnInterval;
-    // limit active balls to 30
-    if (ballData.size < 30) spawnBall();
+  if (gameState === 'play') {
+    spawnTimer += dt;
+    const waves = Math.floor(timeSinceStart / 10);
+    spawnInterval = Math.max(0.35, 1.0 * Math.pow(0.9, waves));
+    while (spawnTimer >= spawnInterval) {
+      spawnTimer -= spawnInterval;
+      if (ballData.size < 30) spawnBall();
+    }
   }
 
   while (acc >= FIXED_DT) {
@@ -340,5 +388,33 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-init().catch((e) => console.error(e));
+function showOverlay(title: string, btn: string, msg?: string) {
+  overlayTitle.textContent = title;
+  overlayBtn.textContent = btn;
+  overlayMsg.textContent = msg ?? '';
+  overlay.style.display = 'flex';
+}
 
+function hideOverlay() {
+  overlay.style.display = 'none';
+}
+
+overlayBtn.addEventListener('click', () => {
+  if (gameState === 'menu') {
+    // start
+    setState('play');
+    hideOverlay();
+    return;
+  }
+  if (gameState === 'paused') {
+    setState('play');
+    hideOverlay();
+    return;
+  }
+  if (gameState === 'result') {
+    // simplest reset: reload
+    window.location.reload();
+  }
+});
+
+init().catch((e) => console.error(e));

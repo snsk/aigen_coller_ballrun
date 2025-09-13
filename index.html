@@ -15,10 +15,17 @@
     <div id="app"></div>
     <div class="hud">
       <span class="stat">Score: <span id="score">0</span></span>
+      <span class="stat">Lives: <span id="lives">3</span></span>
       <span class="stat">Balls: <span id="balls">0</span></span>
-      <span class="stat">Mode: <span id="mode">Classic</span></span>
+      <span class="stat">State: <span id="state">Menu</span></span>
+    </div>
+    <div id="overlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:auto;background:rgba(0,0,0,0.5);color:#e6edf3;font:16px/1.4 system-ui,sans-serif;">
+      <div style="text-align:center;background:#141820;border:1px solid #2a2f36;border-radius:8px;padding:20px 24px;min-width:260px;">
+        <div id="overlay-title" style="font-size:20px;margin-bottom:8px;">Color Ball Run</div>
+        <div id="overlay-msg" style="opacity:0.9;margin-bottom:16px;">クリックでスタート（Classic: 3 ライフ）</div>
+        <button id="overlay-btn" style="padding:8px 14px;border-radius:6px;border:1px solid #3a414a;background:#222834;color:#e6edf3;cursor:pointer;">Start</button>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
   </html>
-
