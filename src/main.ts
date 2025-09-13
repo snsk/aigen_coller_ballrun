@@ -17,7 +17,6 @@ let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
 let renderer: THREE.WebGLRenderer;
 let world: RAPIER.World;
-let eventQueue: RAPIER.EventQueue;
 
 // Three meshes
 const meshes: Map<number, THREE.Object3D> = new Map(); // rigidBody handle -> mesh
@@ -128,7 +127,6 @@ async function init() {
   await RAPIER.init();
   world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   world.timestep = FIXED_DT;
-  eventQueue = new RAPIER.EventQueue(true);
 
   // Build static environment: rail (inclined), table (flat)
   buildEnvironment();
@@ -292,22 +290,27 @@ function stepPhysics(dt: number) {
     }
   }
 
-  world.step(eventQueue);
+  world.step();
 
-  // Handle intersection events
-  eventQueue.drainIntersectionEvents((h1, h2, intersecting) => {
-    if (!intersecting) return;
-    const aColor = triggerColors.get(h1);
-    const bColor = triggerColors.get(h2);
-    const aBall = ballData.get(h1);
-    const bBall = ballData.get(h2);
-    // One should be trigger color, the other ball
-    if (aColor && bBall) {
-      handleBallHit(bBall.color, aColor, h2);
-    } else if (bColor && aBall) {
-      handleBallHit(aBall.color, bColor, h1);
+  // Manual sensor checks: iterate balls vs triggers (O(120) max)
+  if (gameState === 'play') {
+    outer: for (const [ballColHandle, info] of Array.from(ballData.entries())) {
+      for (const [trigHandle, trigColor] of triggerColors.entries()) {
+        try {
+          // Rapier world.intersectionPair returns boolean for sensors
+          const intersecting = (world as any).intersectionPair
+            ? (world as any).intersectionPair(ballColHandle, trigHandle)
+            : false;
+          if (intersecting) {
+            handleBallHit(info.color, trigColor, ballColHandle);
+            continue outer;
+          }
+        } catch {
+          // ignore
+        }
+      }
     }
-  });
+  }
 
   // Sync mesh transforms from rigid bodies
   for (const [rbHandle, obj] of meshes) {
