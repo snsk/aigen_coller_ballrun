@@ -399,11 +399,18 @@ function hideOverlay() {
   overlay.style.display = 'none';
 }
 
+function startGame() {
+  setState('play');
+  hideOverlay();
+  // immediate feedback: spawn one ball instantly
+  spawnTimer = 0;
+  timeSinceStart = 0;
+  if (ballData.size < 30) spawnBall();
+}
+
 overlayBtn.addEventListener('click', () => {
   if (gameState === 'menu') {
-    // start
-    setState('play');
-    hideOverlay();
+    startGame();
     return;
   }
   if (gameState === 'paused') {
@@ -412,8 +419,15 @@ overlayBtn.addEventListener('click', () => {
     return;
   }
   if (gameState === 'result') {
-    // simplest reset: reload
     window.location.reload();
+  }
+});
+
+// click anywhere on overlay to start/resume
+overlay.addEventListener('click', (e) => {
+  if (e.target === overlay && (gameState === 'menu' || gameState === 'paused')) {
+    if (gameState === 'menu') startGame();
+    else { setState('play'); hideOverlay(); }
   }
 });
 
