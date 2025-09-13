@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Color Ball Run</title>
+    <style>
+      html, body, #app { height: 100%; margin: 0; background: #0e1116; color: #e6edf3; }
+      .hud { position: absolute; top: 8px; left: 8px; font: 14px/1.4 system-ui, sans-serif; }
+      .hud .stat { margin-right: 12px; display: inline-block; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div class="hud">
+      <span class="stat">Score: <span id="score">0</span></span>
+      <span class="stat">Balls: <span id="balls">0</span></span>
+      <span class="stat">Mode: <span id="mode">Classic</span></span>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+  </html>
+
